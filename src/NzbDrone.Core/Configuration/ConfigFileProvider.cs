@@ -45,6 +45,11 @@ namespace NzbDrone.Core.Configuration
         int LogRotate { get; }
         int LogSizeLimit { get; }
         bool FilterSentryEvents { get; }
+        string OidcAuthority { get; }
+        string OidcClientId { get; }
+        string OidcClientSecret { get; }
+        string OidcUserIdentifier { get; }
+        string OidcScopes { get; }
         string Branch { get; }
         string ApiKey { get; }
         string SslCertPath { get; }
@@ -237,6 +242,12 @@ namespace NzbDrone.Core.Configuration
         public bool TrustCgnatIpAddresses => _authOptions.TrustCgnatIpAddresses ?? GetValueBoolean("TrustCgnatIpAddresses", false, persist: false);
 
         public string AllowedHosts => _serverOptions.AllowedHosts ?? GetValue("AllowedHosts", string.Empty);
+
+        public string OidcAuthority => _authOptions.OidcAuthority ?? GetValue("OidcAuthority", string.Empty, persist: false);
+        public string OidcClientId => _authOptions.OidcClientId ?? GetValue("OidcClientId", string.Empty, persist: false);
+        public string OidcClientSecret => _authOptions.OidcClientSecret ?? GetValue("OidcClientSecret", string.Empty, persist: false);
+        public string OidcUserIdentifier => _authOptions.OidcUserIdentifier ?? GetValue("OidcUserIdentifier", string.Empty, persist: false);
+        public string OidcScopes => _authOptions.OidcScopes ?? GetValue("OidcScopes", "openid profile email", persist: false);
 
         public bool AnalyticsEnabled => _logOptions.AnalyticsEnabled ?? GetValueBoolean("AnalyticsEnabled", true, persist: false);
 
