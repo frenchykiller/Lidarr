@@ -72,9 +72,53 @@ namespace Lidarr.Http.Authentication
 
         private static AuthenticationBuilder AddOidc(this AuthenticationBuilder authenticationBuilder, string name)
         {
+            authenticationBuilder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
+                .Configure<IConfigFileProvider>((options, configFileProvider) =>
+                {
+                    var instanceName = GetCleanInstanceName(configFileProvider.InstanceName);
+
+                    options.Cookie.Name = $"{instanceName}OIDC";
+                    options.AccessDeniedPath = "/login?loginFailed=true";
+                    options.LoginPath = "/login";
+                    options.ReturnUrlParameter = "returnUrl";
+                    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+                    options.SlidingExpiration = true;
+                    options.Cookie.IsEssential = true;
+                    options.Events.OnValidatePrincipal = context =>
+                    {
+                        var configuredUser = configFileProvider.OidcUserIdentifier;
+
+                        if (configFileProvider.EffectiveAuthenticationMethod() == AuthenticationType.Oidc &&
+                            configuredUser.IsNotNullOrWhiteSpace() &&
+                            string.Equals(context.Principal?.FindFirst("user")?.Value, configuredUser, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return Task.CompletedTask;
+                        }
+
+                        context.RejectPrincipal();
+
+                        return context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    };
+
+                    options.Events.OnRedirectToLogin = context => EventOnRedirectCookiesLogin(context, 401);
+                    options.Events.OnRedirectToAccessDenied = context => EventOnRedirectCookiesLogin(context, 403);
+                });
+
             authenticationBuilder.Services.AddOptions<OpenIdConnectOptions>(name)
                 .Configure<IConfigFileProvider, ICertificateValidationService>((options, configFileProvider, certificateValidationService) =>
                 {
+                    options.CorrelationCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+                    options.NonceCookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+
+                    if (configFileProvider.AuthenticationMethod != AuthenticationType.Oidc ||
+                        !configFileProvider.IsOidcConfigured())
+                    {
+                        options.Authority = "https://localhost";
+                        options.ClientId = "Lidarr";
+
+                        return;
+                    }
+
                     options.Authority = configFileProvider.OidcAuthority;
                     options.ClientId = configFileProvider.OidcClientId;
                     options.ClientSecret = configFileProvider.OidcClientSecret;
@@ -313,7 +357,9 @@ namespace Lidarr.Http.Authentication
 
         private static Task EventOnRedirectCookiesLogin(RedirectContext<CookieAuthenticationOptions> context, int statusCode)
         {
-            if (context.Request.Path.StartsWithSegments("/api"))
+            if (context.Request.Path.StartsWithSegments("/api") ||
+                string.Equals(context.Request.Query[HeaderNames.XRequestedWith], "XMLHttpRequest", StringComparison.Ordinal) ||
+                string.Equals(context.Request.Headers[HeaderNames.XRequestedWith], "XMLHttpRequest", StringComparison.Ordinal))
             {
                 context.Response.Headers[HeaderNames.WWWAuthenticate] = "Basic realm=\"Lidarr API\"";
                 context.Response.StatusCode = statusCode;
