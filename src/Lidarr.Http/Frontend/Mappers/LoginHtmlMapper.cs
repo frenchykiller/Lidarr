@@ -43,8 +43,8 @@ namespace Lidarr.Http.Frontend.Mappers
             var theme = _configFileProvider.Theme;
             var authMethod = _configFileProvider.AuthenticationMethod.ToString().ToLowerInvariant();
 
-            if (_configFileProvider.AuthenticationMethod == NzbDrone.Core.Authentication.AuthenticationType.Oidc &&
-                !NzbDrone.Core.Authentication.AuthenticationConfigurationExtensions.IsOidcConfigured(_configFileProvider))
+            if (_configFileProvider.AuthenticationMethod == AuthenticationType.Oidc &&
+                !_configFileProvider.IsOidcConfigured())
             {
                 authMethod += " oidc-misconfigured";
             }
